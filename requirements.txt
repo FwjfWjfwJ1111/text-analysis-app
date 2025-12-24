@@ -1,0 +1,15 @@
+# 核心Web框架
+streamlit>=1.32.0
+
+# 网页爬取相关
+requests>=2.31.0
+beautifulsoup4>=4.12.2
+
+# 中文分词
+jieba>=0.42.1
+
+# 可视化相关（pyecharts+streamlit适配）
+pyecharts>=2.0.5
+streamlit-echarts>=0.4.0
+
+# 基础依赖（Python内置库无需添加）
