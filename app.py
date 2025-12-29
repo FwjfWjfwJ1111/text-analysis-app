@@ -13,7 +13,7 @@ def main():
     # ================= 页面设置 =================
     st.set_page_config(
         page_title="文本词频分析与可视化系统",
-        layout="wide"  # 强制宽布局，给图表更多空间
+        layout="wide"  
     )
 
     st.markdown(
@@ -52,7 +52,7 @@ def main():
     )
 
     # ================= 主页面布局 =================
-    left, right = st.columns([2, 4])  # 增大右侧图表区域的宽度占比
+    left, right = st.columns([2, 4])  
 
     with left:
         st.subheader("🔗 输入文章 URL")
@@ -72,20 +72,60 @@ def main():
             response = requests.get(url, timeout=10)
             response.encoding = response.apparent_encoding
             soup = BeautifulSoup(response.text, "html.parser")
-            text = soup.get_text()
+            raw_text = soup.get_text()  # 原始文本
+            
+            # 2. 文本清洗
+            # 第一步：清理多余空白字符
+            cleaned_text = ' '.join(raw_text.split())
+            # 第二步：进一步清洗（移除特殊字符、只保留中文和常用标点）
+            import re
+            # 保留中文、数字、字母和常用标点
+            filtered_text = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9，。！？；：""''（）【】《》、·]', '', cleaned_text)
 
-            # 2. 分词
-            words = jieba.lcut(text)
-            words = [w for w in words if len(w) > 1 and w.strip()]
+            # 3. 分词
+            words = jieba.lcut(filtered_text)  # 使用清洗后的文本分词
+            # 过滤掉单字和空白词
+            filtered_words = [w for w in words if len(w) > 1 and w.strip()]
 
-            # 3. 词频统计
-            counter = Counter(words)
+            # 4. 词频统计
+            counter = Counter(filtered_words)
             counter = Counter({k: v for k, v in counter.items() if v >= min_freq})
             top20 = counter.most_common(20)  # 确认取20个数据
 
             labels = [i[0] for i in top20]
             values = [i[1] for i in top20]
 
+            # ===== 新增：文本查看区域（原始+清洗后） =====
+            with left:
+                st.divider()
+                
+                # 原始文本查看器
+                with st.expander("📝 查看抓取的原始文本", expanded=False):
+                    st.info(f"📊 原始文本统计：总字符数 {len(raw_text)}")
+                    st.text_area(
+                        label="原始文本",
+                        value=raw_text,
+                        height=200,
+                        placeholder="抓取的原始文本将显示在这里...",
+                        label_visibility="collapsed"
+                    )
+                
+                # 清洗后文本查看器
+                with st.expander("🧹 查看清洗后的文本（用于分析）", expanded=True):
+                    st.info(
+                        f"📊 清洗后文本统计：\n"
+                        f"总字符数 {len(filtered_text)} | "
+                        f"分词总数 {len(words)} | "
+                        f"过滤后分词数 {len(filtered_words)} | "
+                        f"去重后词汇数 {len(counter)}"
+                    )
+                    st.text_area(
+                        label="清洗后文本",
+                        value=filtered_text,
+                        height=200,
+                        placeholder="清洗后的文本将显示在这里...",
+                        label_visibility="collapsed"
+                    )
 
             # ===== 左侧：词频表 =====
             with left:
@@ -123,26 +163,22 @@ def main():
                     )
 
                 elif chart_type == "横向柱状图":
-                    # 核心优化：横向柱状图（重点解决只显示10个的问题）
                     chart = (
-                        # 1. 增大图表高度，足够容纳20个标签
                         Bar(init_opts=opts.InitOpts(width="100%", height="900px"))
                         .add_xaxis(labels)
                         .add_yaxis("词频", values)
-                        .reversal_axis()  # 反转轴，变成横向
+                        .reversal_axis()  
                         .set_global_opts(
                             title_opts=opts.TitleOpts(title="横向词频对比图"),
-                            # 2. 强制显示所有Y轴标签（横向图的标签在Y轴）
                             yaxis_opts=opts.AxisOpts(
                                 axislabel_opts=opts.LabelOpts(
-                                    font_size=7,  # 最小化字体，减少占用空间
-                                    overflow="break",  # 标签换行
-                                    margin=3  # 缩小标签间距
+                                    font_size=7,  
+                                    overflow="break", 
+                                    margin=3  
                                 ),
-                                interval=0,  # 关键：强制显示所有标签，不截断
-                                split_number=20,  # 强制分割为20个刻度
+                                interval=0,  
+                                split_number=20,  
                             ),
-                            # 3. 关闭自动缩放，避免标签被隐藏
                             datazoom_opts=[opts.DataZoomOpts(type_="inside")]
                         )
                     )
@@ -207,7 +243,6 @@ def main():
                 # ===== 统一渲染其他图形 =====
                 if chart:
                     if chart_type == "横向柱状图":
-                        # 4. 渲染时再强制指定高度，双重保障
                         st_pyecharts(chart, height="900px", width="100%")
                     else:
                         st_pyecharts(chart, height="600px", width="100%")
