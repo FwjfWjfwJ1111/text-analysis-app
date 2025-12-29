@@ -48,7 +48,8 @@ def main():
 
     st.sidebar.info(
         "📌 支持 7 种图形切换\\n\\n"
-        "📈 默认展示词频 Top20"
+        "📈 图表/Top20表格：按所选阈值过滤\\n"
+        "📋 全量词频面板：显示所有词频≥1的词汇"
     )
 
     # ================= 主页面布局 =================
@@ -63,7 +64,7 @@ def main():
 
     with right:
         st.subheader("📈 可视化结果区域")
-        st.caption("图表将根据参数自动更新")
+        st.caption("图表将根据参数自动更新（展示 Top20）")
 
     # ================= 业务逻辑 =================
     if url:
@@ -88,36 +89,29 @@ def main():
             filtered_words = [w for w in words if len(w) > 1 and w.strip()]
 
             # 4. 词频统计
-            counter = Counter(filtered_words)
-            counter = Counter({k: v for k, v in counter.items() if v >= min_freq})
-            top20 = counter.most_common(20)  # 确认取20个数据
+            # 全量词频：固定显示词频≥1的所有词汇
+            all_counter = Counter(filtered_words)
+            all_words_freq = sorted(all_counter.items(), key=lambda x: x[1], reverse=True)
+            
+            # Top20用的词频：跟随侧边栏阈值过滤
+            filtered_counter = Counter({k: v for k, v in all_counter.items() if v >= min_freq})
+            top20 = filtered_counter.most_common(20)  
 
             labels = [i[0] for i in top20]
             values = [i[1] for i in top20]
 
-            # ===== 新增：文本查看区域（原始+清洗后） =====
+            # ===== 左侧：可折叠面板（清洗后文本 + 全量词频） =====
             with left:
                 st.divider()
                 
-                # 原始文本查看器
-                with st.expander("📝 查看抓取的原始文本", expanded=False):
-                    st.info(f"📊 原始文本统计：总字符数 {len(raw_text)}")
-                    st.text_area(
-                        label="原始文本",
-                        value=raw_text,
-                        height=200,
-                        placeholder="抓取的原始文本将显示在这里...",
-                        label_visibility="collapsed"
-                    )
-                
-                # 清洗后文本查看器
-                with st.expander("🧹 查看清洗后的文本（用于分析）", expanded=True):
+                # 面板1：清洗后的文本（默认折叠）
+                with st.expander("🧹 清洗后的文本", expanded=False):
                     st.info(
-                        f"📊 清洗后文本统计：\n"
-                        f"总字符数 {len(filtered_text)} | "
+                        f"📊 文本统计：\n"
+                        f"清洗后字符数 {len(filtered_text)} | "
                         f"分词总数 {len(words)} | "
                         f"过滤后分词数 {len(filtered_words)} | "
-                        f"去重后词汇数 {len(counter)}"
+                        f"总词汇数（去重） {len(all_counter)}"
                     )
                     st.text_area(
                         label="清洗后文本",
@@ -126,13 +120,25 @@ def main():
                         placeholder="清洗后的文本将显示在这里...",
                         label_visibility="collapsed"
                     )
+                
+                # 面板2：全部分词的词频
+                with st.expander("📋 全量词频统计", expanded=False):
+                    # 转换为DataFrame格式展示全量数据
+                    freq_df = [{"词语": k, "出现次数": v} for k, v in all_words_freq]
+                    st.dataframe(
+                        freq_df,
+                        use_container_width=True,
+                        hide_index=True  # 隐藏索引列，更美观
+                    )
+                    # 显示统计信息
+                    st.caption(f"共 {len(freq_df)} 个词汇（词频≥1，无过滤）")
 
-            # ===== 左侧：词频表 =====
-            with left:
-                st.markdown("### 🏆 高频词 Top20")
+                # ===== Top20 词频表格 =====
+                st.markdown("### 🏆 高频词 Top20（词频≥{}）".format(min_freq))
                 st.dataframe(
                     [{"词语": k, "出现次数": v} for k, v in top20],
-                    use_container_width=True
+                    use_container_width=True,
+                    hide_index=True
                 )
 
             # ===== 右侧：图表 =====
@@ -143,7 +149,7 @@ def main():
                     chart = (
                         WordCloud()
                         .add("", top20, word_size_range=[20, 90])
-                        .set_global_opts(title_opts=opts.TitleOpts(title="词云分析结果"))
+                        .set_global_opts(title_opts=opts.TitleOpts(title="词云分析结果（Top20，词频≥{}）".format(min_freq)))
                     )
 
                 elif chart_type == "柱状图":
@@ -152,7 +158,7 @@ def main():
                         .add_xaxis(labels)
                         .add_yaxis("词频", values)
                         .set_global_opts(
-                            title_opts=opts.TitleOpts(title="词频柱状图"),
+                            title_opts=opts.TitleOpts(title="词频柱状图（Top20，词频≥{}）".format(min_freq)),
                             xaxis_opts=opts.AxisOpts(
                                 axislabel_opts=opts.LabelOpts(
                                     rotate=45, font_size=8, overflow="break"
@@ -169,7 +175,7 @@ def main():
                         .add_yaxis("词频", values)
                         .reversal_axis()  
                         .set_global_opts(
-                            title_opts=opts.TitleOpts(title="横向词频对比图"),
+                            title_opts=opts.TitleOpts(title="横向词频对比图（Top20，词频≥{}）".format(min_freq)),
                             yaxis_opts=opts.AxisOpts(
                                 axislabel_opts=opts.LabelOpts(
                                     font_size=7,  
@@ -189,7 +195,7 @@ def main():
                         .add_xaxis(labels)
                         .add_yaxis("词频", values)
                         .set_global_opts(
-                            title_opts=opts.TitleOpts(title="词频折线图"),
+                            title_opts=opts.TitleOpts(title="词频折线图（Top20，词频≥{}）".format(min_freq)),
                             xaxis_opts=opts.AxisOpts(
                                 axislabel_opts=opts.LabelOpts(rotate=45, font_size=8),
                                 interval=0
@@ -203,7 +209,7 @@ def main():
                         .add_xaxis(labels)
                         .add_yaxis("词频", values, areastyle_opts=opts.AreaStyleOpts(opacity=0.4))
                         .set_global_opts(
-                            title_opts=opts.TitleOpts(title="词频面积图"),
+                            title_opts=opts.TitleOpts(title="词频面积图（Top20，词频≥{}）".format(min_freq)),
                             xaxis_opts=opts.AxisOpts(
                                 axislabel_opts=opts.LabelOpts(rotate=45, font_size=8),
                                 interval=0
@@ -222,7 +228,7 @@ def main():
                             label_opts=opts.LabelOpts(position="outside", formatter="{b}: {c} ({d}%)", font_size=10)
                         )
                         .set_global_opts(
-                            title_opts=opts.TitleOpts(title="词频占比饼图", pos_top="1%", pos_left="center"),
+                            title_opts=opts.TitleOpts(title="词频占比饼图（Top20，词频≥{}）".format(min_freq), pos_top="1%", pos_left="center"),
                             legend_opts=opts.LegendOpts(is_show=False)
                         )
                     )
@@ -235,7 +241,7 @@ def main():
                         Radar(init_opts=opts.InitOpts(width="100%", height="700px"))
                         .add_schema(schema=indicators, textstyle_opts=opts.TextStyleOpts(font_size=10))
                         .add("词频", [values])
-                        .set_global_opts(title_opts=opts.TitleOpts(title="词频雷达图"))
+                        .set_global_opts(title_opts=opts.TitleOpts(title="词频雷达图（Top20，词频≥{}）".format(min_freq)))
                     )
                     st_pyecharts(chart, height="700px", width="100%")
                     chart = None
